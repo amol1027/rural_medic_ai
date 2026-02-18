@@ -13,9 +13,10 @@ interface RequestBody {
 }
 
 Deno.serve(async (req: Request) => {
+  // Handle CORS preflight - return headers immediately
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
+    return new Response("ok", {
+      status: 204,
       headers: corsHeaders,
     });
   }
@@ -33,16 +34,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const openaiApiKey = Deno.env.get("VITE_OPENAI_API_KEY");
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!openaiApiKey || !supabaseUrl || !supabaseServiceKey) {
+    if (!geminiApiKey || !supabaseUrl || !supabaseServiceKey) {
       throw new Error("Required environment variables not configured");
     }
 
     const base64Data = fileData.split(",")[1];
-    const buffer = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    if (!base64Data) {
+      throw new Error("Invalid file data format");
+    }
 
     const documentId = crypto.randomUUID();
 
@@ -64,52 +67,48 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!insertDocResponse.ok) {
-      throw new Error("Failed to create document record");
+      const errorData = await insertDocResponse.json().catch(() => ({}));
+      throw new Error(`Failed to create document record: ${errorData.message || insertDocResponse.statusText}`);
     }
 
     const extractResponse = await fetch(
-      "https://api.openai.com/v1/chat/completions",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${openaiApiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "system",
-              content:
-                "Extract all text content from this PDF document. Return only the extracted text without any commentary.",
-            },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Extract text from this PDF:",
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: fileData,
-                  },
-                },
-              ],
-            },
-          ],
-          max_tokens: 4000,
+          contents: [{
+            parts: [
+              { text: "Extract all text content from this PDF document. Return only the extracted text without any commentary." },
+              { inlineData: { mimeType: "application/pdf", data: base64Data } }
+            ],
+          }],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 8000,
+          },
         }),
       }
     );
 
     if (!extractResponse.ok) {
-      throw new Error("Failed to extract PDF text");
+      const errorData = await extractResponse.json().catch(() => ({}));
+      throw new Error(`Failed to extract PDF text: ${errorData.error?.message || extractResponse.statusText}`);
     }
 
     const extractData = await extractResponse.json();
-    const fullText = extractData.choices[0].message.content;
+    const parts = extractData.candidates?.[0]?.content?.parts || [];
+    let fullText = '';
+    for (const part of parts) {
+      if (part.text && !part.thought) {
+        fullText = part.text;
+      }
+    }
+    if (!fullText) {
+      throw new Error("Failed to extract text from document");
+    }
 
     const chunkSize = 800;
     const words = fullText.split(/\s+/);
@@ -123,16 +122,14 @@ Deno.serve(async (req: Request) => {
       const chunk = chunks[i];
 
       const embeddingResponse = await fetch(
-        "https://api.openai.com/v1/embeddings",
+        `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${geminiApiKey}`,
         {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${openaiApiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "text-embedding-ada-002",
-            input: chunk,
+            content: { parts: [{ text: chunk }] },
           }),
         }
       );
@@ -143,9 +140,9 @@ Deno.serve(async (req: Request) => {
       }
 
       const embeddingData = await embeddingResponse.json();
-      const embedding = embeddingData.data[0].embedding;
+      const embedding = embeddingData.embedding.values;
 
-      await fetch(`${supabaseUrl}/rest/v1/embeddings`, {
+      const insertEmbedding = await fetch(`${supabaseUrl}/rest/v1/embeddings`, {
         method: "POST",
         headers: {
           "apikey": supabaseServiceKey,
@@ -160,9 +157,13 @@ Deno.serve(async (req: Request) => {
           embedding: embedding,
         }),
       });
+
+      if (!insertEmbedding.ok) {
+        console.error(`Failed to insert embedding for chunk ${i}:`, await insertEmbedding.text());
+      }
     }
 
-    await fetch(`${supabaseUrl}/rest/v1/documents?id=eq.${documentId}`, {
+    const updateResponse = await fetch(`${supabaseUrl}/rest/v1/documents?id=eq.${documentId}`, {
       method: "PATCH",
       headers: {
         "apikey": supabaseServiceKey,
@@ -173,6 +174,10 @@ Deno.serve(async (req: Request) => {
         status: "completed",
       }),
     });
+
+    if (!updateResponse.ok) {
+      console.error("Failed to update document status:", await updateResponse.text());
+    }
 
     return new Response(
       JSON.stringify({
@@ -186,8 +191,9 @@ Deno.serve(async (req: Request) => {
     );
   } catch (error) {
     console.error("Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
     return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
+      JSON.stringify({ error: errorMessage }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

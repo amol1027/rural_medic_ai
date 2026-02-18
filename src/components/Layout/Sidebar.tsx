@@ -1,78 +1,180 @@
-import { MessageSquare, AlertCircle, Camera, Settings, LogOut } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { MessageSquare, Camera, Database, LogOut, HeartPulse, Stethoscope, Sparkles, Menu } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useState } from 'react';
 
-type SidebarProps = {
-  currentPage: string;
-  onNavigate: (page: string) => void;
-};
+export default function Sidebar() {
+  const { signOut, user, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
-export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
-  const { profile, signOut, isAdmin } = useAuth();
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
-  const menuItems = [
-    { id: 'ask', label: 'Ask AI', icon: MessageSquare },
-    { id: 'emergency', label: 'Emergency Mode', icon: AlertCircle },
-    { id: 'skin', label: 'Skin Check', icon: Camera },
+  const navItems = [
+    { path: '/app/emergency', icon: HeartPulse, label: 'Emergency', shortLabel: 'Emergency', color: 'text-red-500' },
+    { path: '/app/ask-ai', icon: MessageSquare, label: 'Ascleon AI', shortLabel: 'Ascleon', color: 'text-sky-500' },
+    { path: '/app/skin-check', icon: Camera, label: 'Skin Analysis', shortLabel: 'Skin Check', color: 'text-purple-500' },
   ];
 
   if (isAdmin) {
-    menuItems.push({ id: 'admin', label: 'Admin', icon: Settings });
+    navItems.push({ path: '/app/admin', icon: Database, label: 'Admin Panel', shortLabel: 'Admin', color: 'text-emerald-500' });
   }
 
   return (
-    <div className="bg-white w-64 h-screen border-r border-gray-200 flex flex-col">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">Rural Medic AI</h1>
-          </div>
-        </div>
-      </div>
-
-      <nav className="flex-1 p-4 space-y-2">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentPage === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-700 hover:bg-gray-50'
-              }`}
+    <>
+      {/* MOBILE BOTTOM NAVIGATION */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200/80 shadow-lg">
+        <nav className="flex items-center justify-around px-2 py-2 safe-area-inset-bottom">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-all duration-200 min-w-[64px] ${
+                  isActive
+                    ? 'bg-sky-50 text-sky-600'
+                    : 'text-slate-500 active:bg-slate-50'
+                }`
+              }
             >
-              <Icon className="w-5 h-5" />
-              <span className="font-medium">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="p-4 border-t border-gray-200">
-        <div className="mb-3 px-4">
-          <p className="text-sm text-gray-600">Signed in as</p>
-          <p className="text-sm font-medium text-gray-900 truncate">{profile?.name}</p>
-          {isAdmin && (
-            <span className="inline-block mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
-              Admin
-            </span>
-          )}
-        </div>
-        <button
-          onClick={() => signOut()}
-          className="w-full flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-        >
-          <LogOut className="w-5 h-5" />
-          <span className="font-medium">Sign Out</span>
-        </button>
+              {({ isActive }) => (
+                <>
+                  <item.icon className={`w-6 h-6 mb-1 ${isActive ? item.color : 'text-slate-400'}`} />
+                  <span className="text-xs font-medium truncate max-w-[64px]">{item.shortLabel}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
+          <button
+            onClick={() => setShowMobileMenu(!showMobileMenu)}
+            className="flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-all duration-200 min-w-[64px] text-slate-500 active:bg-slate-50"
+          >
+            <Menu className="w-6 h-6 mb-1" />
+            <span className="text-xs font-medium">Menu</span>
+          </button>
+        </nav>
       </div>
-    </div>
+
+      {/* MOBILE MENU OVERLAY */}
+      {showMobileMenu && (
+        <div className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setShowMobileMenu(false)}>
+          <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 space-y-4">
+              {/* User Info */}
+              <div className="flex items-center space-x-3 pb-4 border-b border-slate-200">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-400 via-sky-500 to-indigo-500 flex items-center justify-center text-white font-bold text-lg shadow-md">
+                  {user?.email?.[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-800 truncate">{user?.user_metadata.full_name || 'User'}</p>
+                  <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                </div>
+              </div>
+
+              {/* Sign Out Button */}
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-xl bg-red-50 text-red-600 active:bg-red-100 transition-colors text-sm font-semibold"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DESKTOP SIDEBAR */}
+      <div className="hidden md:flex w-72 bg-gradient-to-b from-slate-50 to-slate-100/80 border-r border-slate-200/80 flex-col h-full flex-shrink-0">
+        {/* Brand Header */}
+        <div className="p-6 pb-2">
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="relative">
+              <div className="p-2.5 bg-gradient-to-br from-sky-500 to-sky-600 rounded-xl shadow-lg shadow-sky-500/30">
+                <Stethoscope className="w-6 h-6 text-white" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white animate-pulse"></div>
+            </div>
+            <div>
+              <span className="text-xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent tracking-tight">RuralMedic</span>
+              <div className="flex items-center space-x-1 text-[10px] font-semibold text-sky-600 uppercase tracking-wider">
+                <Sparkles className="w-3 h-3" />
+                <span>AI Powered</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <div className="flex-1 px-4 py-4">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-3">Navigation</p>
+          <nav className="space-y-1.5">
+            {navItems.map((item, index) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) =>
+                  `flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden ${
+                    isActive
+                      ? 'bg-white text-slate-800 shadow-md shadow-slate-200/50 ring-1 ring-slate-200/50'
+                      : 'text-slate-600 hover:bg-white/60 hover:text-slate-800 hover:shadow-sm'
+                  }`
+                }
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                {({ isActive }) => (
+                  <>
+                    {isActive && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-sky-400 to-sky-600 rounded-r-full"></div>
+                    )}
+                    <div className={`p-1 rounded-lg transition-colors ${isActive ? 'bg-slate-100' : 'group-hover:bg-slate-100/50'}`}>
+                      <item.icon className={`w-5 h-5 transition-all duration-200 ${isActive ? item.color : 'text-slate-400 group-hover:text-slate-600'}`} />
+                    </div>
+                    <span className="font-medium text-sm">{item.label}</span>
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
+
+        {/* User Section */}
+        <div className="p-4 border-t border-slate-200/60">
+          <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm mb-3">
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="relative">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-sky-400 via-sky-500 to-indigo-500 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-sky-500/20">
+                  {user?.email?.[0].toUpperCase()}
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-white"></div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-800 truncate">{user?.user_metadata.full_name || 'User'}</p>
+                <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 text-xs text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100/80">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse-soft"></div>
+              <span className="font-semibold">Connected & Ready</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 text-sm font-medium group"
+          >
+            <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </div>
+    </>
   );
 }

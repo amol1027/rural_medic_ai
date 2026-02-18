@@ -1,6 +1,6 @@
 # Rural Medic AI
 
-A full-stack AI-powered healthcare accessibility assistant designed for rural and low-connectivity areas. Provides verified medical guidance using RAG (Retrieval-Augmented Generation), emergency triage, multilingual support, and vision-based skin condition analysis.
+A full-stack AI-powered healthcare accessibility assistant designed for rural and low-connectivity areas. Features **Ascleon AI** - an intelligent medical chatbot that provides verified medical guidance using RAG (Retrieval-Augmented Generation), emergency triage, multilingual support, and vision-based skin condition analysis.
 
 ## Features
 
@@ -9,10 +9,11 @@ A full-stack AI-powered healthcare accessibility assistant designed for rural an
 - Role-based access control (user/admin)
 - Secure session management
 
-### 2. Medical Query Assistant (RAG System)
-- Chat-style interface for medical questions
+### 2. Ascleon AI - Medical Query Assistant (RAG System)
+- Intelligent chat interface powered by Ascleon AI
 - Searches verified medical knowledge base using vector similarity
-- Powered by OpenAI GPT-4o for accurate responses
+- Powered by Google Gemini 2.5 Flash for accurate responses
+- Multilingual support (English, Hindi, Marathi)
 - Always includes safety disclaimers
 - Caches last 10 responses for low-connectivity scenarios
 
@@ -28,6 +29,18 @@ A full-stack AI-powered healthcare accessibility assistant designed for rural an
   - Snake Bite
   - Dehydration
   - Burns
+  - Choking
+  - Severe Bleeding
+  - Fractures & Broken Bones
+  - Heat Stroke
+  - Drowning / Near-Drowning
+  - Insect & Scorpion Stings
+  - Electric Shock
+  - Seizures / Convulsions
+  - Severe Allergic Reaction
+  - Chest Pain / Heart Attack
+  - Dog & Animal Bites
+  - Poisoning
 - Step-by-step first aid instructions
 - Works without internet connectivity
 - Clear warnings and when to seek professional help

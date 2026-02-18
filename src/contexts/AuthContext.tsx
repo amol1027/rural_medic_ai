@@ -1,13 +1,13 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User } from '@supabase/supabase-js';
+import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { supabase, Profile } from '../lib/supabase';
+import { User } from '@supabase/supabase-js';
 
 type AuthContextType = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signUp: (email: string, password: string, name: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
 };
@@ -20,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -29,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -48,9 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .maybeSingle();
+        .single();
 
       if (error) throw error;
+      console.log('Profile loaded:', data); // Debug log
       setProfile(data);
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -59,25 +62,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name }
-      }
-    });
-
-    if (error) throw error;
-  };
+  const isAdmin = profile?.role === 'admin';
+  console.log('Current profile:', profile, 'isAdmin:', isAdmin); // Debug log
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
-      password
+      password,
     });
-
     if (error) throw error;
+  };
+
+  const signUp = async (email: string, password: string, name: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+        },
+        emailRedirectTo: undefined, // Disable email verification redirect
+      },
+    });
+    if (error) throw error;
+    
+    // If email confirmation is disabled, user will be logged in automatically
+    if (data.user && data.session) {
+      setUser(data.user);
+      await loadProfile(data.user.id);
+    }
   };
 
   const signOut = async () => {
@@ -85,10 +98,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   };
 
-  const isAdmin = profile?.role === 'admin';
-
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signOut, isAdmin }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

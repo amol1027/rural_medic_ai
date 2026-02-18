@@ -33,25 +33,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const openaiApiKey = Deno.env.get("VITE_OPENAI_API_KEY");
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!openaiApiKey) {
-      throw new Error("OpenAI API key not configured");
+    if (!geminiApiKey) {
+      throw new Error("Gemini API key not configured");
     }
 
+    // Generate query embedding using Gemini
     const embeddingResponse = await fetch(
-      "https://api.openai.com/v1/embeddings",
+      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${geminiApiKey}`,
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${openaiApiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "text-embedding-ada-002",
-          input: question,
+          content: { parts: [{ text: question }] },
         }),
       }
     );
@@ -61,7 +60,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const embeddingData = await embeddingResponse.json();
-    const embedding = embeddingData.data[0].embedding;
+    const embedding = embeddingData.embedding.values;
 
     const searchResponse = await fetch(
       `${supabaseUrl}/rest/v1/rpc/match_embeddings`,
@@ -87,9 +86,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const languageInstructions: { [key: string]: string } = {
-      en: "You are an expert rural medical assistant. Respond in simple, non-technical English.",
-      hi: "आप एक विशेषज्ञ ग्रामीण चिकित्सा सहायक हैं। सरल, गैर-तकनीकी हिंदी में जवाब दें।",
-      mr: "तुम्ही एक तज्ञ ग्रामीण वैद्यकीय सहाय्यक आहात. साध्या, गैर-तांत्रिक मराठीमध्ये उत्तर द्या।",
+      en: "You are Ascleon AI, an expert rural medical assistant. Respond in simple, non-technical English.",
+      hi: "आप Ascleon AI हैं, एक विशेषज्ञ ग्रामीण चिकित्सा सहायक। सरल, गैर-तकनीकी हिंदी में जवाब दें।",
+      mr: "तुम्ही Ascleon AI आहात, एक तज्ञ ग्रामीण वैद्यकीय सहाय्यक. साध्या, गैर-तांत्रिक मराठीमध्ये उत्तर द्या।",
     };
 
     const systemPrompt = `${languageInstructions[language] || languageInstructions.en}
@@ -106,32 +105,42 @@ IMPORTANT RULES:
 
 ${contextChunks.length > 0 ? `\nVerified Medical Context:\n${contextChunks.join("\n\n")}` : ""}`;
 
-    const gptResponse = await fetch(
-      "https://api.openai.com/v1/chat/completions",
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${openaiApiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: question },
-          ],
-          temperature: 0.3,
-          max_tokens: 800,
+          contents: [{
+            parts: [{
+              text: `${systemPrompt}\n\nQuestion: ${question}`,
+            }],
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 800,
+          },
         }),
       }
     );
 
-    if (!gptResponse.ok) {
+    if (!geminiResponse.ok) {
       throw new Error("Failed to get AI response");
     }
 
-    const gptData = await gptResponse.json();
-    const answer = gptData.choices[0].message.content;
+    const geminiData = await geminiResponse.json();
+    const parts = geminiData.candidates?.[0]?.content?.parts || [];
+    let answer = '';
+    for (const part of parts) {
+      if (part.text && !part.thought) {
+        answer = part.text;
+      }
+    }
+    if (!answer) {
+      answer = parts.find((p: any) => p.text)?.text || 'Sorry, I could not generate a response.';
+    }
 
     if (userId && supabaseUrl && supabaseServiceKey) {
       await fetch(`${supabaseUrl}/rest/v1/queries`, {
@@ -160,8 +169,9 @@ ${contextChunks.length > 0 ? `\nVerified Medical Context:\n${contextChunks.join(
     );
   } catch (error) {
     console.error("Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
     return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
+      JSON.stringify({ error: errorMessage }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
