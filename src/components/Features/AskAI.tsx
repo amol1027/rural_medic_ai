@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, MessageSquare, Sparkles, Bot, User, Zap, Trash2 } from 'lucide-react';
+import { Send, Loader2, MessageSquare, Sparkles, Bot, User, Zap, Trash2, Mic, MicOff, Volume2, Square } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -15,19 +15,84 @@ const LANGUAGES = [
   { code: 'mr', name: 'Marathi (मराठी)' }
 ];
 
+const SPEECH_LANGUAGE_MAP: Record<string, string> = {
+  en: 'en-IN',
+  hi: 'hi-IN',
+  mr: 'mr-IN',
+};
+
+const ACCESSIBILITY_TEXT: Record<string, {
+  startVoiceInput: string;
+  stopVoiceInput: string;
+  readAloud: string;
+  stopReading: string;
+  voiceInputNotSupported: string;
+  readAloudNotSupported: string;
+}> = {
+  en: {
+    startVoiceInput: 'Start voice input',
+    stopVoiceInput: 'Stop voice input',
+    readAloud: 'Read aloud',
+    stopReading: 'Stop reading',
+    voiceInputNotSupported: 'Voice input is not supported in this browser.',
+    readAloudNotSupported: 'Read-aloud is not supported in this browser.',
+  },
+  hi: {
+    startVoiceInput: 'आवाज़ से लिखना शुरू करें',
+    stopVoiceInput: 'आवाज़ से लिखना बंद करें',
+    readAloud: 'जोर से पढ़ें',
+    stopReading: 'पढ़ना बंद करें',
+    voiceInputNotSupported: 'इस ब्राउज़र में वॉइस इनपुट समर्थित नहीं है।',
+    readAloudNotSupported: 'इस ब्राउज़र में जोर से पढ़ना समर्थित नहीं है।',
+  },
+  mr: {
+    startVoiceInput: 'आवाज इनपुट सुरू करा',
+    stopVoiceInput: 'आवाज इनपुट थांबवा',
+    readAloud: 'मोठ्याने वाचा',
+    stopReading: 'वाचन थांबवा',
+    voiceInputNotSupported: 'या ब्राउझरमध्ये व्हॉइस इनपुट उपलब्ध नाही.',
+    readAloudNotSupported: 'या ब्राउझरमध्ये मोठ्याने वाचन उपलब्ध नाही.',
+  },
+};
+
+type SpeechRecognitionInstance = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: any) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+
 export default function AskAI() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [language, setLanguage] = useState('mr');
+  const [isListening, setIsListening] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   const chatCacheKey = user ? `medic_chat_cache_${user.id}` : null;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Clear messages when user changes, then load their own history
@@ -91,6 +156,73 @@ export default function AskAI() {
     if (chatCacheKey) {
       localStorage.removeItem(chatCacheKey);
     }
+  };
+
+  const handleToggleVoiceInput = () => {
+    const speechRecognitionCtor = ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) as SpeechRecognitionConstructor | undefined;
+
+    if (!speechRecognitionCtor) {
+      alert(ACCESSIBILITY_TEXT[language]?.voiceInputNotSupported || ACCESSIBILITY_TEXT.en.voiceInputNotSupported);
+      return;
+    }
+
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
+
+    const recognition = new speechRecognitionCtor();
+    recognition.lang = SPEECH_LANGUAGE_MAP[language] || 'en-IN';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0]?.transcript || '')
+        .join(' ')
+        .trim();
+
+      if (transcript) {
+        setInput(transcript);
+      }
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    recognition.start();
+  };
+
+  const handleReadAloud = (messageId: string, text: string) => {
+    if (!('speechSynthesis' in window)) {
+      alert(ACCESSIBILITY_TEXT[language]?.readAloudNotSupported || ACCESSIBILITY_TEXT.en.readAloudNotSupported);
+      return;
+    }
+
+    if (speakingMessageId === messageId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = SPEECH_LANGUAGE_MAP[language] || 'en-IN';
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+
+    setSpeakingMessageId(messageId);
+    window.speechSynthesis.speak(utterance);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -294,7 +426,11 @@ IMPORTANT RULES:
             </div>
           </div>
         ) : (
-          messages.map((msg, idx) => (
+          messages.map((msg, idx) => {
+            const messageId = `${msg.role}-${idx}-${msg.timestamp.getTime()}`;
+            const isReadingThis = speakingMessageId === messageId;
+
+            return (
             <div
               key={idx}
               className={`flex w-full items-start space-x-2 md:space-x-3 animate-fade-in ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -320,6 +456,17 @@ IMPORTANT RULES:
                   }`}
                 >
                   <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  {msg.role === 'assistant' && (
+                    <button
+                      type="button"
+                      onClick={() => handleReadAloud(messageId, msg.content)}
+                      className="ml-2 inline-flex items-center space-x-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
+                      title={isReadingThis ? (ACCESSIBILITY_TEXT[language]?.stopReading || ACCESSIBILITY_TEXT.en.stopReading) : (ACCESSIBILITY_TEXT[language]?.readAloud || ACCESSIBILITY_TEXT.en.readAloud)}
+                    >
+                      {isReadingThis ? <Square className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                      <span>{isReadingThis ? (ACCESSIBILITY_TEXT[language]?.stopReading || ACCESSIBILITY_TEXT.en.stopReading) : (ACCESSIBILITY_TEXT[language]?.readAloud || ACCESSIBILITY_TEXT.en.readAloud)}</span>
+                    </button>
+                  )}
                 </div>
               </div>
               {msg.role === 'user' && (
@@ -328,7 +475,8 @@ IMPORTANT RULES:
                 </div>
               )}
             </div>
-          ))
+            );
+          })
         )}
         {loading && (
           <div className="flex justify-start items-start space-x-2 md:space-x-3 animate-fade-in">
@@ -366,6 +514,20 @@ IMPORTANT RULES:
                     rows={1}
                 />
             </div>
+
+          <button
+            type="button"
+            onClick={handleToggleVoiceInput}
+            disabled={loading}
+            className={`h-[48px] md:h-[56px] w-[48px] md:w-[56px] rounded-xl md:rounded-2xl text-white font-medium transition-all duration-200 active:scale-95 flex items-center justify-center ${
+              isListening
+                ? 'bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/30'
+                : 'bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/30'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={isListening ? (ACCESSIBILITY_TEXT[language]?.stopVoiceInput || ACCESSIBILITY_TEXT.en.stopVoiceInput) : (ACCESSIBILITY_TEXT[language]?.startVoiceInput || ACCESSIBILITY_TEXT.en.startVoiceInput)}
+          >
+            {isListening ? <MicOff className="w-4 md:w-5 h-4 md:h-5" /> : <Mic className="w-4 md:w-5 h-4 md:h-5" />}
+          </button>
           
           <button
             type="submit"
