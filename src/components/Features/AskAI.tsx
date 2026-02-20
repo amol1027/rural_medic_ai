@@ -55,6 +55,73 @@ const ACCESSIBILITY_TEXT: Record<string, {
   },
 };
 
+const INPUT_PLACEHOLDER_TEXT: Record<string, string> = {
+  en: 'Ask about symptoms or treatment...',
+  hi: 'लक्षण या इलाज के बारे में पूछें...',
+  mr: 'लक्षणे किंवा उपचारांबद्दल विचारा...',
+};
+
+const UI_TEXT: Record<string, {
+  online: string;
+  language: string;
+  clearChat: string;
+  greeting: string;
+  intro: string;
+  thinking: string;
+  disclaimer: string;
+  defaultError: string;
+  starters: { text: string; icon: string }[];
+}> = {
+  en: {
+    online: 'Online',
+    language: 'Language:',
+    clearChat: 'Clear chat',
+    greeting: "Hello! I'm Ascleon AI",
+    intro: 'How can I help you today? Ask about symptoms, medical conditions, first aid, or general health advice.',
+    thinking: 'Thinking...',
+    disclaimer: 'AI can make mistakes. Consider checking important information.',
+    defaultError: 'Sorry, I encountered an error. Please try again later.',
+    starters: [
+      { text: 'What are the symptoms of dengue?', icon: '🦟' },
+      { text: 'How to treat a minor burn?', icon: '🔥' },
+      { text: 'First aid for snake bite', icon: '🐍' },
+      { text: 'Diet for high blood pressure', icon: '❤️' },
+    ],
+  },
+  hi: {
+    online: 'ऑनलाइन',
+    language: 'भाषा:',
+    clearChat: 'चैट साफ़ करें',
+    greeting: 'नमस्ते! मैं Ascleon AI हूँ',
+    intro: 'मैं आज आपकी कैसे मदद कर सकता हूँ? लक्षण, बीमारियाँ, प्राथमिक उपचार या सामान्य स्वास्थ्य सलाह पूछें।',
+    thinking: 'सोच रहा हूँ...',
+    disclaimer: 'AI गलतियाँ कर सकता है। महत्वपूर्ण जानकारी की जाँच करें।',
+    defaultError: 'माफ़ कीजिए, एक त्रुटि हुई। कृपया बाद में फिर प्रयास करें।',
+    starters: [
+      { text: 'डेंगू के लक्षण क्या हैं?', icon: '🦟' },
+      { text: 'हल्की जलन का इलाज कैसे करें?', icon: '🔥' },
+      { text: 'सांप के काटने पर प्राथमिक उपचार', icon: '🐍' },
+      { text: 'उच्च रक्तचाप में आहार कैसा हो?', icon: '❤️' },
+    ],
+  },
+  mr: {
+    online: 'ऑनलाइन',
+    language: 'भाषा:',
+    clearChat: 'चॅट साफ करा',
+    greeting: 'नमस्कार! मी Ascleon AI आहे',
+    intro: 'आज मी तुम्हाला कशी मदत करू? लक्षणे, आजार, प्रथमोपचार किंवा सामान्य आरोग्य सल्ला विचारा.',
+    thinking: 'विचार करत आहे...',
+    disclaimer: 'AI कडून चुका होऊ शकतात. महत्त्वाची माहिती तपासून घ्या.',
+    defaultError: 'माफ करा, एक त्रुटी आली. कृपया नंतर पुन्हा प्रयत्न करा.',
+    starters: [
+      { text: 'डेंग्यूची लक्षणे कोणती?', icon: '🦟' },
+      { text: 'लहान भाजल्यावर काय करावे?', icon: '🔥' },
+      { text: 'साप चावल्यास प्रथमोपचार', icon: '🐍' },
+      { text: 'उच्च रक्तदाबासाठी आहार', icon: '❤️' },
+    ],
+  },
+};
+
 type SpeechRecognitionInstance = {
   lang: string;
   continuous: boolean;
@@ -78,6 +145,7 @@ export default function AskAI() {
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const uiText = UI_TEXT[language] || UI_TEXT.en;
 
   const chatCacheKey = user ? `medic_chat_cache_${user.id}` : null;
 
@@ -332,7 +400,7 @@ IMPORTANT RULES:
       console.error('Error:', error);
       const errorMessage: Message = {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again later.',
+        content: uiText.defaultError,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -359,14 +427,14 @@ IMPORTANT RULES:
             <h2 className="text-base md:text-xl font-bold text-slate-800 truncate">Ascleon AI</h2>
             <p className="text-slate-500 text-[10px] md:text-xs mt-0.5 flex items-center space-x-1.5">
               <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
-              <span className="truncate">Online</span>
+              <span className="truncate">{uiText.online}</span>
             </p>
           </div>
         </div>
         
         {/* Language Selector & Clear Chat */}
         <div className="flex items-center space-x-2 md:space-x-3 flex-shrink-0">
-          <span className="text-[10px] md:text-xs font-medium text-slate-400 hidden sm:inline">Language:</span>
+          <span className="text-[10px] md:text-xs font-medium text-slate-400 hidden sm:inline">{uiText.language}</span>
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
@@ -381,7 +449,7 @@ IMPORTANT RULES:
             <button
               onClick={clearChat}
               className="p-1.5 md:p-2 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-lg md:rounded-xl transition-all active:scale-95 group"
-              title="Clear chat"
+              title={uiText.clearChat}
             >
               <Trash2 className="w-4 h-4 md:w-4.5 md:h-4.5" />
             </button>
@@ -401,18 +469,13 @@ IMPORTANT RULES:
                 <Zap className="w-3 md:w-4 h-3 md:h-4 text-white" />
               </div>
             </div>
-            <h3 className="text-lg md:text-2xl font-bold text-slate-800 mb-2 opacity-0 animate-fade-in" style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}>Hello! I'm Ascleon AI</h3>
+            <h3 className="text-lg md:text-2xl font-bold text-slate-800 mb-2 opacity-0 animate-fade-in" style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}>{uiText.greeting}</h3>
             <p className="text-xs md:text-base text-slate-500 max-w-md mx-auto mb-6 md:mb-8 opacity-0 animate-fade-in" style={{ animationDelay: '0.3s', animationFillMode: 'forwards' }}>
-              How can I help you today? Ask about symptoms, medical conditions, first aid, or general health advice.
+              {uiText.intro}
             </p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3 max-w-2xl w-full">
-              {[
-                { text: "What are the symptoms of dengue?", icon: "🦟" },
-                { text: "How to treat a minor burn?", icon: "🔥" },
-                { text: "First aid for snake bite", icon: "🐍" },
-                { text: "Diet for high blood pressure", icon: "❤️" }
-              ].map((query, i) => (
+              {uiText.starters.map((query, i) => (
                 <button
                   key={i}
                   onClick={() => setInput(query.text)}
@@ -489,7 +552,7 @@ IMPORTANT RULES:
                 <div className="w-1.5 md:w-2 h-1.5 md:h-2 bg-sky-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                 <div className="w-1.5 md:w-2 h-1.5 md:h-2 bg-sky-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
-              <span className="text-xs md:text-sm text-slate-500 font-medium">Thinking...</span>
+              <span className="text-xs md:text-sm text-slate-500 font-medium">{uiText.thinking}</span>
             </div>
           </div>
         )}
@@ -509,7 +572,7 @@ IMPORTANT RULES:
                             handleSubmit(e);
                         }
                     }}
-                    placeholder="Describe your symptoms or ask a question..."
+                    placeholder={INPUT_PLACEHOLDER_TEXT[language] || INPUT_PLACEHOLDER_TEXT.en}
                     className="w-full pl-3 md:pl-5 pr-3 md:pr-4 py-3 md:py-4 bg-slate-50 border border-slate-200 rounded-xl md:rounded-2xl resize-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:bg-white outline-none transition-all duration-200 min-h-[48px] md:min-h-[56px] max-h-[120px] text-sm md:text-base text-slate-700 placeholder-slate-400"
                     rows={1}
                 />
@@ -542,7 +605,7 @@ IMPORTANT RULES:
           </button>
         </form>
         <p className="text-center text-[10px] md:text-[11px] text-slate-400 mt-2 md:mt-2.5">
-          AI can make mistakes. Consider checking important information.
+          {uiText.disclaimer}
         </p>
       </div>
     </div>

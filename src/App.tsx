@@ -5,6 +5,8 @@ import Login from './components/Auth/Login';
 import Homepage from './components/Home/Homepage';
 import AskAI from './components/Features/AskAI';
 import Emergency from './components/Features/Emergency';
+import EmergencyContacts from './components/Features/EmergencyContacts';
+import NearbyCare from './components/Features/NearbyCare';
 import SkinCheck from './components/Features/SkinCheck';
 import Admin from './components/Features/Admin';
 
@@ -61,6 +63,8 @@ function App() {
             <Route index element={<Navigate to="/app/emergency" replace />} />
             <Route path="ask-ai" element={<AskAI />} />
             <Route path="emergency" element={<Emergency />} />
+            <Route path="emergency-contacts" element={<EmergencyContacts />} />
+            <Route path="nearby-care" element={<NearbyCare />} />
             <Route path="skin-check" element={<SkinCheck />} />
             <Route path="admin" element={
               <AdminRoute>

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { MessageSquare, Camera, Database, LogOut, HeartPulse, Stethoscope, Sparkles, Menu } from 'lucide-react';
+import { MessageSquare, Camera, Database, LogOut, HeartPulse, Stethoscope, Sparkles, Menu, Users, MapPin } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useState } from 'react';
 
@@ -19,6 +19,8 @@ export default function Sidebar() {
 
   const navItems = [
     { path: '/app/emergency', icon: HeartPulse, label: 'Emergency', shortLabel: 'Emergency', color: 'text-red-500' },
+    { path: '/app/emergency-contacts', icon: Users, label: 'Emergency Contacts', shortLabel: 'Contacts', color: 'text-emerald-500' },
+    { path: '/app/nearby-care', icon: MapPin, label: 'Nearby Care', shortLabel: 'Nearby', color: 'text-sky-500' },
     { path: '/app/ask-ai', icon: MessageSquare, label: 'Ascleon AI', shortLabel: 'Ascleon', color: 'text-sky-500' },
     { path: '/app/skin-check', icon: Camera, label: 'Skin Analysis', shortLabel: 'Skin Check', color: 'text-purple-500' },
   ];
